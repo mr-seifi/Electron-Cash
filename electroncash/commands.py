@@ -111,6 +111,8 @@ def command(s):
             wallet = args[0].wallet
             network = args[0].network
             password = kwargs.get('password')
+            if c.name == 'signtransaction' and kwargs.get('privkey'):
+                c.requires_password = False
             if c.requires_network and network is None:
                 raise BaseException("Daemon offline")  # Same wording as in daemon.py.
             if c.requires_wallet and wallet is None:
