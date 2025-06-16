@@ -1031,7 +1031,7 @@ command_options = {
     'password':    ("-W", "Password"),
     'payment_url': (None, 'Optional URL where you would like users to POST the BIP70 Payment message'),
     'pending':     (None, "Show only pending requests."),
-    'privkey':     (None, "Private key. Set to '?' to get a prompt."),
+    'privkey':     (None, "Private key. Set to ':' to get a non-echoing prompt."),
     'receiving':   (None, "Show only receiving addresses"),
     'schnorr':     (None, "Use Schnorr signatures instead of ECDSA"),
     'seed_type':   (None, "The type of seed to create, currently: 'electrum' and 'bip39' is supported. Default 'bip39'."),
