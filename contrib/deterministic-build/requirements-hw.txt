@@ -131,7 +131,3 @@ pyscard==2.0.7 \
 trezor==0.13.9 \
     --hash=sha256:9450bd7bb9d23e5e33a3c9e58e18f058b44c9d9c34ca664b4981a795aa9fb1ef \
     --hash=sha256:30ffcbefb5f9300fe1ac34754a593ff10ae400bce22e2a062c45870ed4949fd5
-typing-extensions==4.9.0 \
-    --hash=sha256:23478f88c37f27d76ac8aee6c905017a143b0b1b886c3c9f66bc2fd94f9f5783 \
-    --hash=sha256:af72aea155e91adfc61c3ae9e0e342dbc0cba726d6cba4b6c72c1f34e47291cd
-
