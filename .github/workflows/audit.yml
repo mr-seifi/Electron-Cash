@@ -24,6 +24,13 @@ jobs:
           # GHSA-jjg7-2v4v-x38h is a minor issue that will be fixed on idna bump (>=3.7)
           # PYSEC-2024-60 is a minor issue that will be fixed on idna bump (>=3.7)
           # GHSA-9wx4-h78v-vm56 is not applicable, fixed in requests >= 2.32.0
+          # GHSA-9hjg-9r4m-mvj7 is not applicable (.netrc not used), fixed in request >= 2.32.4
+          # GHSA-pq67-6m6q-mj2v is not applicable (PoolManager not used), fixed in urllib >= 2.5.0
+          # GHSA-4xh5-x5gv-qwph is not applicable (we have pinned packages by hash), fixed in pip >= 25.3 (planned)
+          # PYSEC-2025-49 is not applicable (we have pinned packages by hash), fixed in setuptools >= 78.1.0
+          # GHSA-xqrq-4mgf-ff32 is not applicable (we do not allow imports), fixed in future >= ??
+          # GHSA-79v4-65xg-pq4g is not applicable (we are not using wheels), fixed in cryptography >= 44.0.1
+          # GHSA-8qvm-5x2c-j2w7 is not applicable (we are using the UPD backend), fixed in protobuf >= 5.29.5
           ignore-vulns: |
             PYSEC-2022-43012
             PYSEC-2022-43017
@@ -32,3 +39,10 @@ jobs:
             GHSA-jjg7-2v4v-x38h
             PYSEC-2024-60
             GHSA-9wx4-h78v-vm56
+            GHSA-9hjg-9r4m-mvj7
+            GHSA-pq67-6m6q-mj2v
+            GHSA-4xh5-x5gv-qwph
+            PYSEC-2025-49
+            GHSA-xqrq-4mgf-ff32
+            GHSA-79v4-65xg-pq4g
+            GHSA-8qvm-5x2c-j2w7

@@ -108,6 +108,10 @@ export CMAKE_PREFIX_PATH=$APPDIR/usr
 
 info "Installing Electron Cash and its dependencies"
 mkdir -p "$CACHEDIR/pip_cache"
+
+export MAKEFLAGS="-j${WORKER_COUNT:-$(nproc)}"
+export CMAKE_BUILD_PARALLEL_LEVEL="${WORKER_COUNT:-$(nproc)}"
+
 # Note: We must specify -g0 for CFLAGS to ensure no debug symbols (which can be non-deterministic due to tmp paths
 # encoded in the debug symbols).
 CFLAGS="-g0" "$python" -m pip install --no-deps --no-warn-script-location --no-binary :all: --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-pip.txt"
@@ -181,6 +185,24 @@ strip_binaries()
   } | xargs -0 --no-run-if-empty --verbose strip -R .note.gnu.build-id -R .comment
 }
 strip_binaries
+
+# Strip protbuf binaries of filepaths in .rodata section
+info "Patching protobuf binaries for reproducibility"
+find "$PYDIR"/site-packages/google -name "*.so" -type f | while read -r file; do
+    # Create a backup
+    cp "$file" "$file.bak"
+
+    # Replace temp paths with deterministic paths of EXACTLY the same length
+    # The pattern /tmp/pip-install-XXXXXXXX/protobuf_YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY/
+    # needs to be replaced with a fixed string of the same length
+    perl -pi -e 's|/tmp/pip-install-[a-z0-9_]{8}/protobuf_[a-f0-9]{32}|/tmp/build-fixed-00000000/protobuf_00000000000000000000000000000000|g' "$file"
+
+    # Verify the file size hasn't changed
+    if [ "$(stat -c%s "$file")" != "$(stat -c%s "$file.bak")" ]; then
+        fail "Binary patching changed file size - this is dangerous!"
+    fi
+    rm "$file.bak"
+done
 
 remove_emptydirs()
 {

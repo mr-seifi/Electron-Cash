@@ -284,7 +284,9 @@ class Commands:
 
     @command('wp')
     def password(self, password=None, new_password=None):
-        """Change wallet password. """
+        """Change wallet password.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         b = self.wallet.storage.is_encrypted()
         self.wallet.update_password(password, new_password, b)
         self.wallet.storage.write()
@@ -482,7 +484,9 @@ class Commands:
 
     @command('wp')
     def getprivatekeys(self, address, password=None):
-        """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses."""
+        """Get private keys of addresses. You may pass a single wallet address, or a list of wallet addresses.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         def get_pk(address):
             address = Address.from_string(address)
             return self.wallet.export_private_key(address, password)
@@ -560,18 +564,24 @@ class Commands:
 
     @command('wp')
     def getmasterprivate(self, password=None):
-        """Get master private key. Return your wallet\'s master private key"""
+        """Get master private key. Return your wallet\'s master private key.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         return str(self.wallet.keystore.get_master_private_key(password))
 
     @command('wp')
     def getseed(self, password=None):
-        """Get seed phrase. Print the generation seed of your wallet."""
+        """Get seed phrase. Print the generation seed of your wallet.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         s = self.wallet.get_seed(password)
         return s
 
     @command('wp')
     def importprivkey(self, privkey, password=None):
-        """Import a private key."""
+        """Import a private key.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         if not self.wallet.can_import_privkey():
             return "Error: This type of wallet cannot import private keys. Try to create a new wallet with that key."
         try:
@@ -604,8 +614,9 @@ class Commands:
 
     @command('wp')
     def signmessage(self, address, message, password=None):
-        """Sign a message with a key. Use quotes if your message contains
-        whitespaces"""
+        """Sign a message with a key. Use quotes if your message contains whitespaces.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         address = Address.from_string(address)
         sig = self.wallet.sign_message(address, message, password)
         return base64.b64encode(sig).decode('ascii')
@@ -683,7 +694,9 @@ class Commands:
     @command('wp')
     def payto(self, destination, amount, fee=None, feerate=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None,
               op_return=None, op_return_raw=None, addtransaction=False):
-        """Create a transaction. """
+        """Create a transaction.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
         tx = self._mktx([(destination, amount)], tx_fee, feerate, change_addr, domain, nocheck, unsigned, password, locktime, op_return, op_return_raw, addtransaction=addtransaction)
@@ -691,7 +704,9 @@ class Commands:
 
     @command('wp')
     def paytomany(self, outputs, fee=None, feerate=None, from_addr=None, change_addr=None, nocheck=False, unsigned=False, password=None, locktime=None, addtransaction=False):
-        """Create a multi-output transaction. """
+        """Create a multi-output transaction.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         tx_fee = satoshis(fee)
         domain = from_addr.split(',') if from_addr else None
         tx = self._mktx(outputs, tx_fee, feerate, change_addr, domain, nocheck, unsigned, password, locktime, addtransaction=addtransaction)
@@ -839,7 +854,9 @@ class Commands:
 
     @command('wp')
     def decrypt(self, pubkey, encrypted, password=None):
-        """Decrypt a message encrypted with a public key."""
+        """Decrypt a message encrypted with a public key.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         if not isinstance(pubkey, str) or not isinstance(encrypted, str):
             raise ValueError("pubkey and encrypted text must both be strings")
         res = self.wallet.decrypt_message(pubkey, encrypted, password)
@@ -926,7 +943,9 @@ class Commands:
 
     @command('wp')
     def signrequest(self, address, password=None):
-        "Sign payment request with an OpenAlias"
+        """Sign payment request with an OpenAlias.
+        If you want to be prompted for an argument, type '?' or ':' (concealed)
+        """
         alias = self.config.get('alias')
         if not alias:
             raise ValueError('No alias in your configuration')
@@ -1080,6 +1099,10 @@ config_variables = {
     }
 }
 
+class CustomHelpFormatter(argparse.RawDescriptionHelpFormatter):
+    def _split_lines(self, text, width):
+        return [line.strip() for line in text.splitlines() if line.strip()]
+
 def set_default_subparser(self, name, args=None):
     """see http://stackoverflow.com/questions/5176691/argparse-how-to-specify-a-default-subcommand"""
     subparser_found = False
@@ -1131,7 +1154,6 @@ def subparser_call(self, parser, namespace, values, option_string=None):
 
 argparse._SubParsersAction.__call__ = subparser_call
 
-
 def add_network_options(parser):
     parser.add_argument("-1", "--oneserver", action="store_true", dest="oneserver", default=False, help="connect to one server only")
     parser.add_argument("-s", "--server", dest="server", default=None, help="set server host:port:protocol, where protocol is either t (tcp) or s (ssl)")
@@ -1156,8 +1178,12 @@ def add_global_options(parser):
 
 def get_parser():
     # create main parser
-    parser = argparse.ArgumentParser(
-        epilog="Run 'electron-cash help <command>' to see the help for a command")
+    parser = argparse.ArgumentParser(formatter_class=CustomHelpFormatter,
+        epilog="Special arguments:\n"
+               "  ?  read argument from prompt (? may need escaped in some environments)\n"
+               "  :  read argument from prompt (non-echoing)\n"
+               "  -  read argument from stdin\n\n"
+               "Run 'electron-cash help <command>' to see the help for a command")
     add_global_options(parser)
     subparsers = parser.add_subparsers(dest='cmd', metavar='<command>')
     # gui
