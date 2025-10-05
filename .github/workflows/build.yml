@@ -46,7 +46,7 @@ jobs:
     - name: Archive build
       uses: actions/upload-artifact@v4
       with:
-        name: Electron-Cash-${{ github.ref_name }}.AppImage
+        name: Electron-Cash-AppImage-${{ github.ref_name }}
         path: dist/Electron-Cash*.AppImage
   build_sdist:
     if: (github.event.inputs.sdist == 'true' || github.event_name == 'schedule')
@@ -64,9 +64,10 @@ jobs:
     - name: Archive build
       uses: actions/upload-artifact@v4
       with:
+        name: Electron-Cash-sdist-${{ github.ref_name }}
         path: |
-          dist/Electron-Cash*.zip
-          dist/Electron-Cash*.tar.gz
+          dist/electron_cash*.zip
+          dist/electron_cash*.tar.gz
   build_win32:
     if: (github.event.inputs.win32 == 'true' || github.event_name == 'schedule')
     env:
@@ -83,7 +84,7 @@ jobs:
     - name: Archive build
       uses: actions/upload-artifact@v4
       with:
-        name: Electron-Cash-${{ github.ref_name }}.exe
+        name: Electron-Cash-Win32-${{ github.ref_name }}
         path: dist/Electron-Cash*.exe
   build_android:
     if: (github.event.inputs.android == 'true' || github.event_name == 'schedule')
@@ -101,6 +102,7 @@ jobs:
     - name: Archive build
       uses: actions/upload-artifact@v4
       with:
+        name: Electron-Cash-Android-${{ github.ref_name }}
         path: android/release/*.apk
   build_macos:
     if: (github.event.inputs.macos == 'true')
