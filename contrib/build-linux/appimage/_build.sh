@@ -108,6 +108,10 @@ export CMAKE_PREFIX_PATH=$APPDIR/usr
 
 info "Installing Electron Cash and its dependencies"
 mkdir -p "$CACHEDIR/pip_cache"
+
+export MAKEFLAGS="-j${WORKER_COUNT:-$(nproc)}"
+export CMAKE_BUILD_PARALLEL_LEVEL="${WORKER_COUNT:-$(nproc)}"
+
 # Note: We must specify -g0 for CFLAGS to ensure no debug symbols (which can be non-deterministic due to tmp paths
 # encoded in the debug symbols).
 CFLAGS="-g0" "$python" -m pip install --no-deps --no-warn-script-location --no-binary :all: --cache-dir "$CACHEDIR/pip_cache" -r "$CONTRIB/deterministic-build/requirements-pip.txt"
