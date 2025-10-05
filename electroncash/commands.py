@@ -422,7 +422,7 @@ class Commands:
 
     @command('wp')
     def signtransaction(self, tx, privkey=None, password=None, schnorr=False):
-        """Sign a transaction. The wallet keys will be used unless a private key
+        """Sign a transaction. The wallet keys will be used unless a private key is provided.
         If you want to be prompted for an argument, type '?' or ':' (concealed)
         """
         tx = Transaction(tx, sign_schnorr=schnorr or (self.wallet and self.wallet.is_schnorr_enabled()))
