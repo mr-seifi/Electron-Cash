@@ -26,10 +26,8 @@ from .. import transaction
 from ..address import Address, Base58, ScriptOutput
 from ..bitcoin import *  # COIN, TYPE_ADDRESS, sha256
 from ..i18n import _
-from ..plugins import run_hook
 from ..transaction import Transaction, OPReturn
-from ..keystore import KeyStore
-from ..util import print_msg, print_error, do_in_main_thread
+from ..util import print_error, do_in_main_thread
 
 
 def _satoshis(amount):
@@ -472,21 +470,26 @@ def extract_private_keys_from_transaction(wallet, raw_tx, password=None):
         # Get the pubkey of the sender from the scriptSig.
         scriptSig = bytes.fromhex(single_input["scriptSig"])
         d = {}
-        transaction.parse_scriptSig(d, scriptSig)  # Populates `d`
+        try:
+            transaction.parse_scriptSig(d, scriptSig)  # Populates `d`
+        except (TypeError, ValueError) as e:
+            print_error('{}: Failed to parse tx input {}:{}, probably a p2sh (non multisig?). Exception was: {}'
+                        .format(__name__, prevout_hash, prevout_n, repr(e)))
+            continue
 
         sender_pubkey = None
         if "pubkeys" in d:
             sender_pubkey_string = d["pubkeys"][0]
             if isinstance(sender_pubkey_string, str):
-                if all(c in "0123456789ABCDEFabcdef" for c in sender_pubkey_string):
-                    sender_pubkey = bytes.fromhex(d["pubkeys"][0])
+                try:
+                    sender_pubkey = bytes.fromhex(sender_pubkey_string)
+                except ValueError:  # Not hex
+                    pass
 
         if sender_pubkey is None:
             # This scriptsig either doesn't have a key (coinbase tx, etc), or the xpubkey in the scriptsig is not a
             # hex string (P2PK, etc), or is not a scriptSig we can understand
             continue
-
-        sender_pubkey = bytes.fromhex(d["pubkeys"][0])
 
         # We need the private key that corresponds to the scanpubkey.
         # In this implementation, this is the one that goes with receiving
