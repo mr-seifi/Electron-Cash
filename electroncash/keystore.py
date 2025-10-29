@@ -29,7 +29,7 @@ from typing import Optional
 from . import bitcoin
 from .bitcoin import *
 
-from .address import Address, PublicKey
+from .address import Address, PublicKey, UnknownAddress
 from . import networks
 from .mnemonic import Mnemonic, Mnemonic_Electrum, seed_type_name, is_seed
 from .plugins import run_hook
@@ -71,7 +71,11 @@ class KeyStore(PrintError):
                 if x_signatures[k] is not None:
                     # this pubkey already signed
                     continue
-                derivation = self.get_pubkey_derivation(x_pubkey)
+                try:
+                    derivation = self.get_pubkey_derivation(x_pubkey)
+                except BadXPubKey:
+                    # Bad xpubkey can happen due to bad heuristic in Transaction.parse_scriptSig, See: #2958
+                    derivation = None
                 if not derivation:
                     continue
                 keypairs[x_pubkey] = derivation
@@ -695,6 +699,10 @@ def parse_xpubkey(x_pubkey):
     return BIP32_KeyStore.parse_xpubkey(x_pubkey)
 
 
+class BadXPubKey(BaseException):
+    pass
+
+
 def xpubkey_to_address(x_pubkey):
     if x_pubkey[0:2] == 'fd':
         address = bitcoin.script_to_address(x_pubkey[2:])
@@ -708,9 +716,12 @@ def xpubkey_to_address(x_pubkey):
         mpk, s = Old_KeyStore.parse_xpubkey(x_pubkey)
         pubkey = Old_KeyStore.get_pubkey_from_mpk(mpk, s[0], s[1])
     else:
-        raise BaseException("Cannot parse pubkey")
+        raise BadXPubKey("Cannot parse pubkey")
     if pubkey:
         address = Address.from_pubkey(pubkey)
+    else:
+        # This branch is here for belt-and-suspenders and shouldn't normally ever be taken
+        address = UnknownAddress()
     return pubkey, address
 
 def xpubkey_to_pubkey(x_pubkey):

@@ -56,7 +56,7 @@ from . import util
 from .address import Address, Script, ScriptOutput, PublicKey, OpCodes
 from .bitcoin import *
 from .version import *
-from .keystore import load_keystore, Hardware_KeyStore, Imported_KeyStore, BIP32_KeyStore, xpubkey_to_address
+from .keystore import load_keystore, Hardware_KeyStore, Imported_KeyStore, BIP32_KeyStore, xpubkey_to_address, BadXPubKey
 from . import networks
 from . import keystore
 from .storage import multisig_type, WalletStorage
@@ -3264,7 +3264,11 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             if isinstance(k, BIP32_KeyStore):
                 for txin in tx.inputs():
                     for x_pubkey in txin['x_pubkeys']:
-                        _, addr = xpubkey_to_address(x_pubkey)
+                        try:
+                            _, addr = xpubkey_to_address(x_pubkey)
+                        except BadXPubKey:
+                            # Bad xpubkey can happen due to bad heuristic in Transaction.parse_scriptSig, See: #2958
+                            continue
                         try:
                             c, index = self.get_address_index(addr)
                         except:
