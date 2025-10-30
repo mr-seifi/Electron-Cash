@@ -53,7 +53,7 @@ from .util import (NotEnoughFunds, ExcessiveFee, PrintError, UserCancelled, prof
                    finalization_print_error, to_string, TimeoutException)
 from . import util
 
-from .address import Address, Script, ScriptOutput, PublicKey, OpCodes
+from .address import Address, Script, ScriptOutput, PublicKey, OpCodes, UnknownAddress
 from .bitcoin import *
 from .version import *
 from .keystore import load_keystore, Hardware_KeyStore, Imported_KeyStore, BIP32_KeyStore, xpubkey_to_address, BadXPubKey
@@ -2132,7 +2132,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
     def export_history(self, domain=None, from_timestamp=None, to_timestamp=None, fx=None,
                        show_addresses=False, decimal_point=8,
                        *, fee_calc_timeout=10.0, download_inputs=False,
-                       progress_callback=None, receives_before_sends=False):
+                       progress_callback=None, receives_before_sends=False, fee_calc_timeout_callback=None):
         """Export history. Used by RPC & GUI.
 
         Arg notes:
@@ -2143,7 +2143,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
           long time is for some pathological tx's, it is very slow to calculate
           fee as it involves deserializing prevout_tx from the wallet, for each
           input).
-        - `download_inputs`, if True, will allow for more accurate fee data to
+          - If the fee calc time expires, `fee_calc_timeout_callback` is called with no args once.
+        - `download_inputs`, if True, will allow for more accurate fee and address data to
           be exported with the history by using the Transaction class input
           fetcher to download *all* prevout_hash tx's for inputs (even for
           inputs not in wallet). This feature requires self.network (ie, we need
@@ -2167,12 +2168,15 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         # *not* want to deserialize tx's in wallet.transactoins since that
         # wastes memory
         local_tx_cache = {}
+        did_time_out_on_input_dl = False
         # some helpers for this function
         t0 = time.time()
         def time_remaining(): return max(fee_calc_timeout - (time.time()-t0), 0)
+
         class MissingTx(RuntimeError):
-            ''' Can happen in rare circumstances if wallet history is being
-            radically reorged by network thread while we are in this code. '''
+            """ Can happen in rare circumstances if wallet history is being
+            radically reorged by network thread while we are in this code. """
+
         def get_tx(tx_hash):
             ''' Try to get a tx from wallet, then from the Transaction class
             cache if that fails. In either case it deserializes the copy and
@@ -2195,38 +2199,57 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             else:
                 raise MissingTx(f'txid {tx_hash} dropped out of wallet history while exporting')
             return tx
+
+        def try_fetch_inputs(tx, timeout):
+            q = queue.Queue()
+
+            def done():
+                q.put(1)
+
+            if tx.fetch_input_data(self, use_network=bool(download_inputs), done_callback=done):
+                try:
+                    q.get(timeout=timeout)
+                except queue.Empty:
+                    pass
+
         def try_calc_fee(tx_hash):
-            ''' Try to calc fee from cheapest to most expensive calculation.
+            """ Try to calc fee from cheapest to most expensive calculation.
             Ultimately asks the transaction class to look at prevouts in wallet and uses
-            that scheme as a last (more CPU intensive) resort. '''
+            that scheme as a last (more CPU intensive) resort. """
+            nonlocal did_time_out_on_input_dl
             fee = self.tx_fees.get(tx_hash)
             if fee is not None:
-                return fee
+                return fee, get_tx(tx_hash)
+
             def do_get_fee(tx_hash):
+                nonlocal did_time_out_on_input_dl
                 tx = get_tx(tx_hash)
+
                 def try_get_fee(tx):
-                    try: return tx.get_fee()
-                    except InputValueMissing: pass
+                    try:
+                        return tx.get_fee()
+                    except InputValueMissing:
+                        pass
+
                 fee = try_get_fee(tx)
                 t_remain = time_remaining()
-                if fee is None and t_remain:
-                    q = queue.Queue()
-                    def done():
-                        q.put(1)
-                    tx.fetch_input_data(self, use_network=bool(download_inputs), done_callback=done)
-                    try: q.get(timeout=t_remain)
-                    except queue.Empty: pass
-                    fee = try_get_fee(tx)
-                return fee
-            fee = do_get_fee(tx_hash)
+                if fee is None:
+                    if t_remain:
+                        try_fetch_inputs(tx, t_remain)
+                        fee = try_get_fee(tx)
+                    else:
+                        did_time_out_on_input_dl = True
+                return fee, tx
+
+            fee, tx = do_get_fee(tx_hash)
             if fee is not None:
                 self.tx_fees[tx_hash] = fee  # save fee to wallet if we bothered to dl/calculate it.
-            return fee
+            return fee, tx
+
         def fmt_amt(v, is_diff):
             if v is None:
                 return '--'
-            return format_satoshis(v, decimal_point=decimal_point,
-                                   is_diff=is_diff)
+            return format_satoshis(v, decimal_point=decimal_point, is_diff=is_diff)
 
         # grab history
         h = self.get_history(domain, reverse=True, receives_before_sends=receives_before_sends)
@@ -2245,7 +2268,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             if to_timestamp and timestamp_safe >= to_timestamp:
                 continue
             try:
-                fee = try_calc_fee(tx_hash)
+                fee, tx_maybe_has_fetched_inputs = try_calc_fee(tx_hash)
             except MissingTx as e:
                 self.print_error(str(e))
                 continue
@@ -2264,11 +2287,29 @@ class Abstract_Wallet(PrintError, SPVDelegate):
                 tx = get_tx(tx_hash)
                 input_addresses = []
                 output_addresses = []
-                for x in tx.inputs():
-                    if x['type'] == 'coinbase': continue
+                for i, x in enumerate(tx.inputs()):
+                    if x['type'] == 'coinbase':
+                        continue
                     addr = x.get('address')
-                    if addr == None: continue
-                    input_addresses.append(addr.to_ui_string())
+                    if addr is None or isinstance(addr, UnknownAddress):
+                        tx_maybe_has_fetched_inputs.inputs()  # Force deserialization
+                        try:
+                            addr = tx_maybe_has_fetched_inputs.fetched_inputs()[i].get('address')
+                        except IndexError:
+                            addr = None
+                    if addr is None:
+                        # Maybe missing fetched inputs, try to fetch them
+                        t_remain = time_remaining()
+                        if t_remain:  # But only if we have time remaining
+                            try_fetch_inputs(tx_maybe_has_fetched_inputs, t_remain)
+                            try:
+                                addr = tx_maybe_has_fetched_inputs.fetched_inputs()[i].get('address')
+                            except IndexError:
+                                addr = None
+                        else:
+                            did_time_out_on_input_dl = True
+                    if addr is not None:
+                        input_addresses.append(addr.to_ui_string())
                 for _type, addr, v in tx.outputs():
                     output_addresses.append(addr.to_ui_string())
                 item['input_addresses'] = input_addresses
@@ -2281,6 +2322,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             out.append(item)
         if progress_callback:
             progress_callback(1.0)  # indicate done, just in case client code expects a 1.0 in order to detect completion
+        if fee_calc_timeout_callback is not None and did_time_out_on_input_dl:
+            fee_calc_timeout_callback()
         return out
 
     def export_token_history(self, token_meta, domain=None, from_timestamp=None, to_timestamp=None,
