@@ -3466,12 +3466,14 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         if domain:
             return domain[0]
 
-    def get_payment_status(self, address, amount):
+    def get_payment_status(self, address, amount, *, tokenreq=False, category_id=None):
         local_height = self.get_local_height()
         received, sent = self.get_addr_io(address)
         l = []
         for txo, x in received.items():
             h, v, is_cb, token_data = x
+            if tokenreq and token_data and (category_id is None or token_data.id_hex == category_id):
+                v = token_data.amount
             txid, n = txo.split(':')
             info = self.verified_tx.get(txid)
             if info:
@@ -3483,12 +3485,15 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         tx_hashes = []
         vsum = 0
         amount = amount or 0
+        is_paid = False
+        result_conf = None
         for conf, v, tx_hash in reversed(sorted(l)):
             vsum += v
             tx_hashes.append(tx_hash)
             if vsum >= amount:
-                return True, conf, tx_hashes
-        return False, None, tx_hashes
+                is_paid = True
+                result_conf = conf
+        return is_paid, result_conf, tx_hashes
 
     def has_payment_request(self, addr):
         ''' Returns True iff Address addr has any extant payment requests
@@ -3552,7 +3557,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             expiration = 0
         conf = None
         tx_hashes = []
-        paid, conf, tx_hashes = self.get_payment_status(address, amount)
+        paid, conf, tx_hashes = self.get_payment_status(address, amount, tokenreq=r.get('tokenreq', False), category_id=r.get('category_id'))
         if not paid:
             status = PR_UNPAID
         elif conf == 0:
@@ -3564,7 +3569,7 @@ class Abstract_Wallet(PrintError, SPVDelegate):
         return status, conf, tx_hashes
 
     def make_payment_request(self, addr, amount, message, expiration=None, *,
-                             op_return=None, op_return_raw=None, payment_url=None, index_url=None, token_request=False):
+                             op_return=None, op_return_raw=None, payment_url=None, index_url=None, token_request=False, category_id=None):
         assert isinstance(addr, Address)
         if op_return and op_return_raw:
             raise ValueError("both op_return and op_return_raw cannot be specified as arguments to make_payment_request")
@@ -3577,7 +3582,8 @@ class Abstract_Wallet(PrintError, SPVDelegate):
             'address': addr,
             'memo': message,
             'id': _id,
-            'tokenreq': token_request
+            'tokenreq': token_request,
+            'category_id': category_id,
         }
         if payment_url:
             d['payment_url'] = payment_url + "/" + _id
