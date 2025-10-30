@@ -23,7 +23,6 @@
 # CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-from .transaction import tx_from_str
 import argparse
 import ast
 import base64
@@ -46,7 +45,7 @@ from .consolidate import AddressConsolidator
 from .i18n import _
 from .plugins import run_hook
 from .wallet import create_new_wallet, restore_wallet_from_text
-from .transaction import Transaction, multisig_script, OPReturn
+from .transaction import Transaction, multisig_script, OPReturn, tx_from_str
 from .util import bfh, bh2u, format_satoshis, json_decode, print_error, standardize_path, to_bytes
 from .paymentrequest import PR_PAID, PR_UNCONFIRMED, PR_UNPAID, PR_UNKNOWN, PR_EXPIRED
 from .simple_config import SimpleConfig
